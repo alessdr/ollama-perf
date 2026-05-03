@@ -116,6 +116,56 @@ async function clearDashboardData() {
     }
 }
 
+async function generateReport() {
+    const btn = document.getElementById('reportBtn');
+    const btnText = document.getElementById('reportBtnText');
+    const canvas = document.getElementById('avgTimeChart');
+    
+    if (!canvas || !avgTimeChartInstance) {
+        alert("Nenhum dado disponível para gerar o relatório.");
+        return;
+    }
+
+    const originalText = btnText.innerText;
+    btn.disabled = true;
+    btnText.innerText = 'Gerando...';
+
+    try {
+        const chartImage = canvas.toDataURL('image/png');
+        
+        const response = await fetch('/api/report/generate', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                chart_image: chartImage
+            })
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Falha ao gerar relatório');
+        }
+
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `ollama_performance_report_${new Date().toISOString().split('T')[0]}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+    } catch (error) {
+        console.error('Report Error:', error);
+        alert(error.message);
+    } finally {
+        btn.disabled = false;
+        btnText.innerText = originalText;
+    }
+}
+
 // --- Models List Logic ---
 async function loadModelsList() {
     const tableBody = document.querySelector('#modelsTable tbody');

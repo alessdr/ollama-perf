@@ -3,6 +3,9 @@
 {% block page_title %}Dashboard{% endblock %}
 
 {% block topbar_actions %}
+<button class="btn btn-primary" onclick="generateReport()" id="reportBtn">
+    <i data-lucide="file-text" style="width: 16px; height: 16px;"></i> <span id="reportBtnText">Gerar Relatório</span>
+</button>
 <button class="btn btn-danger" onclick="clearDashboardData()">
     <i data-lucide="trash-2" style="width: 16px; height: 16px;"></i> Clear Test Data
 </button>

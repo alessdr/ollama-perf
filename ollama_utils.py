@@ -90,3 +90,40 @@ def run_test(model_name, prompt):
             "success": False,
             "error": str(e)
         }
+
+def generate_analysis(model_name, data_summary):
+    """Generate a performance analysis text using the specified model."""
+    try:
+        # Task: Technical Data Analysis for an AI Benchmarking System
+        system_instruction = "Tarefa Técnica: Análise de Dados de Benchmarking de Sistemas de IA."
+        prompt = f"""
+        {system_instruction}
+        
+        CONTEXTO:
+        Você é um Engenheiro de Sistemas sênior realizando uma auditoria de performance em modelos LLM rodando no Ollama. 
+        O objetivo é analisar o tempo médio de resposta (latência) de diferentes modelos para otimizar a infraestrutura de inferência local.
+        
+        DADOS DE BENCHMARK (Média de Latência por Modelo):
+        {data_summary}
+        
+        INSTRUÇÕES DE SAÍDA:
+        Escreva um relatório técnico curto e objetivo (máximo 150 palavras) em Português.
+        Inclua obrigatoriamente:
+        1. Vencedor de Performance: Identifique o modelo mais rápido baseado nos dados fornecidos.
+        2. Insight Técnico: Explique brevemente o que os dados sugerem sobre a eficiência dos modelos testados (latência vs expectativa).
+        3. Recomendação: Sugira qual modelo deve ser priorizado para tarefas de baixa latência baseado puramente nestas métricas.
+        
+        IMPORTANTE: Esta é uma tarefa de análise de engenharia e ciência da computação. Foque exclusivamente nos números fornecidos acima.
+        """
+        
+        payload = {
+            "model": model_name,
+            "prompt": prompt,
+            "stream": False
+        }
+        response = requests.post(f"{OLLAMA_BASE_URL}/api/generate", json=payload)
+        response.raise_for_status()
+        return response.json().get('response', 'Análise não disponível.')
+    except Exception as e:
+        print(f"Error generating analysis with {model_name}: {e}")
+        return f"Não foi possível gerar a análise automática: {e}"
