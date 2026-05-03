@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+
+{% block page_title %}Run Performance Test{% endblock %}
+
+{% block content %}
+<div class="test-container">
+    <div class="card form-card">
+        <h3>Configure Test</h3>
+        <form id="testForm" onsubmit="runTest(event)">
+            <div class="form-group">
+                <label for="modelSelect">Select Model</label>
+                <select id="modelSelect" class="form-control" required>
+                    <option value="">Loading...</option>
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label for="promptInput">Prompt</label>
+                <textarea id="promptInput" class="form-control" rows="5" required placeholder="Enter the prompt to test..."></textarea>
+            </div>
+            
+            <button type="submit" class="btn btn-primary btn-block" id="runTestBtn">
+                <i data-lucide="play" style="width:16px;height:16px;" id="runIcon"></i>
+                <span class="btn-text">Run Test</span>
+                <span class="spinner hidden"></span>
+            </button>
+        </form>
+    </div>
+    
+    <div class="card result-card">
+        <h3>Test Result</h3>
+        <div id="testResultContent" class="result-content empty">
+            <p class="placeholder-text">Run a test to see the results here.</p>
+        </div>
+    </div>
+    <div class="card console-card col-span-2">
+        <h3>Execution Console</h3>
+        <div class="console-wrapper">
+            <div class="console-header">
+                <div class="mac-dot close"></div>
+                <div class="mac-dot min"></div>
+                <div class="mac-dot max"></div>
+            </div>
+            <div id="executionConsole" class="console-box">
+                <p><span class="console-time">[System]</span> Ready to execute tests.</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        populateModelsDropdown();
+    });
+</script>
+{% endblock %}

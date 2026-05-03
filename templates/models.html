@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+
+{% block page_title %}Model Management{% endblock %}
+
+{% block content %}
+<div class="card full-width">
+    <div class="card-header">
+        <h3>Available Models</h3>
+        <button class="btn btn-primary" onclick="loadModelsList()">
+            <i data-lucide="refresh-cw" style="width: 16px; height: 16px;"></i> Refresh
+        </button>
+    </div>
+    
+    <div class="table-responsive">
+        <table class="data-table" id="modelsTable">
+            <thead>
+                <tr>
+                    <th>Model Name</th>
+                    <th>Size (GB)</th>
+                    <th>Parameters</th>
+                    <th>Quantization</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td colspan="6" class="text-center">Loading models...</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        loadModelsList();
+    });
+</script>
+{% endblock %}

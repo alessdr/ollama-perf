@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.env
+.venv
+env/
+venv/
+ENV/
+
+# Database
+# test_metrics.db
+
+# Antigravity Kit
+# .agent/
+
+# OS
+.DS_Store
+Thumbs.db

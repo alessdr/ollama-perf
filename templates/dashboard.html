@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+
+{% block page_title %}Dashboard{% endblock %}
+
+{% block topbar_actions %}
+<button class="btn btn-danger" onclick="clearDashboardData()">
+    <i data-lucide="trash-2" style="width: 16px; height: 16px;"></i> Clear Test Data
+</button>
+{% endblock %}
+
+{% block content %}
+<div class="dashboard-grid">
+    <div class="card chart-card">
+        <h3>Average Response Time (ms)</h3>
+        <div class="chart-container">
+            <canvas id="avgTimeChart"></canvas>
+        </div>
+    </div>
+    
+    <div class="card history-card">
+        <h3>Recent Tests</h3>
+        <div class="table-responsive">
+            <table class="data-table" id="recentTestsTable">
+                <thead>
+                    <tr>
+                        <th>Model</th>
+                        <th>Prompt snippet</th>
+                        <th>Time (ms)</th>
+                        <th>Date</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- Populated via JS -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        loadDashboardData();
+    });
+</script>
+{% endblock %}
