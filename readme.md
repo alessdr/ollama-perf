@@ -42,10 +42,10 @@ Para que o projeto funcione corretamente, você precisa ter os seguintes itens i
    ```bash
    python app.py
    ```
-   *Você verá a mensagem indicando que o servidor está rodando em `http://127.0.0.1:5000`.*
+   *Você verá a mensagem indicando que o servidor está rodando em `http://127.0.0.1:5001`.*
 
 5. **Acesse no navegador**:
-   Abra o seu navegador web favorito e acesse [http://127.0.0.1:5000](http://127.0.0.1:5000).
+   Abra o seu navegador web favorito e acesse [http://127.0.0.1:5001](http://127.0.0.1:5001).
 
 ---
 

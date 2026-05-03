@@ -33,4 +33,4 @@ A aplicação foi testada, o banco de dados SQLite inicializa corretamente e a i
 > source .venv/bin/activate
 > python app.py
 > ```
-> Depois, acesse `http://127.0.0.1:5000` no seu navegador! Lembre-se de certificar-se de que o Ollama esteja rodando na sua máquina.
+> Depois, acesse `http://127.0.0.1:5001` no seu navegador! Lembre-se de certificar-se de que o Ollama esteja rodando na sua máquina.

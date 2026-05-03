@@ -87,6 +87,10 @@ async function loadDashboardData() {
         avgTTFTChartInstance,
         'ms'
     );
+
+    if (window.lucide) {
+        window.lucide.createIcons();
+    }
 }
 
 function createBarChart(canvasId, labels, data, label, color, existingInstance, unit) {

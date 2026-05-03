@@ -42,10 +42,18 @@
                     <tr>
                         <th>Model</th>
                         <th>Prompt snippet</th>
-                        <th>Latency (ms)</th>
-                        <th>Speed (tok/s)</th>
-                        <th>TTFT (ms)</th>
-                        <th>Tokens (P/R)</th>
+                        <th title="Tempo total de resposta, desconsiderando o tempo de carregamento inicial do modelo.">
+                            Latency (ms) <i data-lucide="info" style="width: 12px; height: 12px; opacity: 0.5;"></i>
+                        </th>
+                        <th title="Velocidade de geração: quantos tokens o modelo produz por segundo.">
+                            Speed (tok/s) <i data-lucide="info" style="width: 12px; height: 12px; opacity: 0.5;"></i>
+                        </th>
+                        <th title="Time To First Token: Tempo de processamento do prompt até o início da geração.">
+                            TTFT (ms) <i data-lucide="info" style="width: 12px; height: 12px; opacity: 0.5;"></i>
+                        </th>
+                        <th title="Contagem de tokens: Prompt (Entrada) / Response (Saída).">
+                            Tokens (P/R) <i data-lucide="info" style="width: 12px; height: 12px; opacity: 0.5;"></i>
+                        </th>
                         <th>Date</th>
                     </tr>
                 </thead>
