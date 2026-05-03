@@ -9,7 +9,7 @@ venv/
 ENV/
 
 # Database
-# test_metrics.db
+test_metrics.db
 
 # Antigravity Kit
 # .agent/
