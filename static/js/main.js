@@ -16,6 +16,8 @@ async function fetchAPI(url, options = {}) {
 
 // --- Dashboard Logic ---
 let avgTimeChartInstance = null;
+let avgTPSChartInstance = null;
+let avgTTFTChartInstance = null;
 
 async function loadDashboardData() {
     const tableBody = document.querySelector('#recentTestsTable tbody');
@@ -29,7 +31,7 @@ async function loadDashboardData() {
     // Render Table
     tableBody.innerHTML = '';
     if (data.recent.length === 0) {
-        tableBody.innerHTML = '<tr><td colspan="4" class="text-center">No tests run yet.</td></tr>';
+        tableBody.innerHTML = '<tr><td colspan="7" class="text-center">No tests run yet.</td></tr>';
     } else {
         data.recent.forEach(test => {
             const row = document.createElement('tr');
@@ -40,39 +42,71 @@ async function loadDashboardData() {
                 <td><strong>${test.model_name}</strong></td>
                 <td title="${test.prompt}">${promptSnippet}</td>
                 <td>${test.response_time_ms.toFixed(2)}</td>
+                <td>${test.tokens_per_second ? test.tokens_per_second.toFixed(2) : '-'}</td>
+                <td>${test.ttft_ms ? test.ttft_ms.toFixed(2) : '-'}</td>
+                <td><small>${test.prompt_tokens || 0} / ${test.response_tokens || 0}</small></td>
                 <td>${dateStr}</td>
             `;
             tableBody.appendChild(row);
         });
     }
 
-    // Render Chart
-    const ctx = document.getElementById('avgTimeChart');
-    if (!ctx) return;
-
-    if (data.averages.length === 0) {
-        // No data
-        return;
-    }
+    if (data.averages.length === 0) return;
 
     const labels = data.averages.map(a => a.model_name);
-    const chartData = data.averages.map(a => a.avg_time_ms);
+    
+    // 1. Latency Chart
+    avgTimeChartInstance = createBarChart(
+        'avgTimeChart', 
+        labels, 
+        data.averages.map(a => a.avg_time_ms), 
+        'Latency (ms)', 
+        'rgba(59, 130, 246, 0.6)', 
+        avgTimeChartInstance,
+        'ms'
+    );
 
-    if (avgTimeChartInstance) {
-        avgTimeChartInstance.destroy();
-    }
+    // 2. Speed Chart
+    avgTPSChartInstance = createBarChart(
+        'avgTPSChart', 
+        labels, 
+        data.averages.map(a => a.avg_tps), 
+        'Speed (Tok/s)', 
+        'rgba(16, 185, 129, 0.6)', 
+        avgTPSChartInstance,
+        'tok/s'
+    );
 
-    avgTimeChartInstance = new Chart(ctx, {
+    // 3. TTFT Chart
+    avgTTFTChartInstance = createBarChart(
+        'avgTTFTChart', 
+        labels, 
+        data.averages.map(a => a.avg_ttft), 
+        'TTFT (ms)', 
+        'rgba(245, 158, 11, 0.6)', 
+        avgTTFTChartInstance,
+        'ms'
+    );
+}
+
+function createBarChart(canvasId, labels, data, label, color, existingInstance, unit) {
+    const ctx = document.getElementById(canvasId);
+    if (!ctx) return null;
+    if (existingInstance) existingInstance.destroy();
+
+    return new Chart(ctx, {
         type: 'bar',
         data: {
             labels: labels,
             datasets: [{
-                label: 'Average Response Time (ms)',
-                data: chartData,
-                backgroundColor: 'rgba(59, 130, 246, 0.5)',
-                borderColor: 'rgba(59, 130, 246, 1)',
-                borderWidth: 1,
-                borderRadius: 4
+                label: label,
+                data: data,
+                backgroundColor: color,
+                borderColor: color.replace('0.6', '1'),
+                borderWidth: 2,
+                borderRadius: 6,
+                barThickness: 'flex',
+                maxBarThickness: 50
             }]
         },
         options: {
@@ -81,17 +115,24 @@ async function loadDashboardData() {
             scales: {
                 y: {
                     beginAtZero: true,
-                    grid: { color: 'rgba(255, 255, 255, 0.1)' },
-                    ticks: { color: '#94a3b8' }
+                    grid: { color: 'rgba(255, 255, 255, 0.15)', drawBorder: false },
+                    ticks: { 
+                        color: '#94a3b8', 
+                        font: { size: 10 },
+                        callback: (v) => v + ' ' + unit
+                    }
                 },
                 x: {
                     grid: { display: false },
-                    ticks: { color: '#94a3b8' }
+                    ticks: { color: '#94a3b8', font: { size: 10 } }
                 }
             },
             plugins: {
-                legend: {
-                    labels: { color: '#f8fafc' }
+                legend: { display: false },
+                tooltip: {
+                    backgroundColor: '#1e293b',
+                    padding: 10,
+                    cornerRadius: 8
                 }
             }
         }
@@ -108,10 +149,9 @@ async function clearDashboardData() {
     });
     
     if (res.success) {
-        if (avgTimeChartInstance) {
-            avgTimeChartInstance.destroy();
-            avgTimeChartInstance = null;
-        }
+        if (avgTimeChartInstance) avgTimeChartInstance.destroy();
+        if (avgTPSChartInstance) avgTPSChartInstance.destroy();
+        if (avgTTFTChartInstance) avgTTFTChartInstance.destroy();
         loadDashboardData();
     }
 }

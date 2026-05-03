@@ -8,12 +8,13 @@ import io
 from datetime import datetime
 from sqlalchemy import func
 from fpdf import FPDF
+from fpdf.enums import XPos, YPos
 import system_utils
 
 app = Flask(__name__)
 
 # Configure SQLite Database
-basedir = os.path.abspath(os.path.dirname(__name__))
+basedir = os.path.abspath(os.path.dirname(__file__))
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'test_metrics.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
@@ -91,7 +92,11 @@ def api_run_test():
         test_run = TestRun(
             model_name=model_name,
             prompt=prompt,
-            response_time_ms=result['total_duration_ms']
+            response_time_ms=result['total_duration_ms'],
+            tokens_per_second=result['tokens_per_second'],
+            ttft_ms=result['ttft_ms'],
+            prompt_tokens=result['prompt_tokens'],
+            response_tokens=result['response_tokens']
         )
         db.session.add(test_run)
         db.session.commit()
@@ -106,19 +111,27 @@ def api_run_test():
 
 @app.route('/api/dashboard', methods=['GET'])
 def api_dashboard_data():
-    # Calculate average response time per model
+    # Calculate average response time and advanced metrics per model
     from sqlalchemy import func
-    avg_times = db.session.query(
+    avg_metrics = db.session.query(
         TestRun.model_name,
         func.avg(TestRun.response_time_ms).label('avg_time'),
+        func.avg(TestRun.tokens_per_second).label('avg_tps'),
+        func.avg(TestRun.ttft_ms).label('avg_ttft'),
         func.count(TestRun.id).label('count')
     ).group_by(TestRun.model_name).all()
     
-    # Get last 20 tests for history chart
+    # Get last 20 tests for history
     recent_tests = TestRun.query.order_by(TestRun.created_at.desc()).limit(20).all()
     
     data = {
-        "averages": [{"model_name": row.model_name, "avg_time_ms": round(row.avg_time, 2), "count": row.count} for row in avg_times],
+        "averages": [{
+            "model_name": row.model_name, 
+            "avg_time_ms": round(row.avg_time, 2),
+            "avg_tps": round(row.avg_tps, 2) if row.avg_tps else 0,
+            "avg_ttft": round(row.avg_ttft, 2) if row.avg_ttft else 0,
+            "count": row.count
+        } for row in avg_metrics],
         "recent": [t.to_dict() for t in recent_tests]
     }
     return jsonify(data)
@@ -144,18 +157,18 @@ class PDFReport(FPDF):
         self.set_y(10)
         self.set_font('Helvetica', 'B', 22)
         self.set_text_color(255, 255, 255)
-        self.cell(0, 10, 'Ollama Performance Report', 0, 1, 'C')
+        self.cell(0, 10, 'Ollama Performance Report', align='C', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
         
         self.set_font('Helvetica', '', 10)
-        self.set_text_color(148, 163, 184) # text-muted color
-        self.cell(0, 10, f'Gerado em: {datetime.now().strftime("%d/%m/%Y %H:%M:%S")}', 0, 1, 'C')
+        self.set_text_color(148, 163, 184)
+        self.cell(0, 10, f'Gerado em: {datetime.now().strftime("%d/%m/%Y %H:%M:%S")}', align='C', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
         self.ln(20)
 
     def footer(self):
         self.set_y(-15)
         self.set_font('Helvetica', 'I', 8)
         self.set_text_color(100, 116, 139)
-        self.cell(0, 10, f'Página {self.page_no()}', 0, 0, 'C')
+        self.cell(0, 10, f'Página {self.page_no()}', align='C', new_x=XPos.RIGHT, new_y=YPos.TOP)
 
 @app.route('/api/report/generate', methods=['POST'])
 def generate_report():
@@ -166,11 +179,17 @@ def generate_report():
         # Get data for the report
         averages = db.session.query(
             TestRun.model_name, 
-            func.avg(TestRun.response_time_ms).label('avg_time')
+            func.avg(TestRun.response_time_ms).label('avg_time'),
+            func.avg(TestRun.tokens_per_second).label('avg_tps'),
+            func.avg(TestRun.ttft_ms).label('avg_ttft')
         ).group_by(TestRun.model_name).order_by(func.avg(TestRun.response_time_ms)).all()
         
         if not averages:
             return jsonify({"error": "Nenhum dado de teste disponível para gerar o relatório."}), 400
+
+        # Get the latest prompt used for context
+        last_test = db.session.query(TestRun).order_by(TestRun.id.desc()).first()
+        used_prompt = last_test.prompt if last_test else "Não disponível"
 
         # Identify best model for analysis (first in ordered list by time)
         best_model_name = averages[0][0]
@@ -184,11 +203,16 @@ def generate_report():
         # Prepare data summary for AI with extra metadata
         models_info = {m['name']: m for m in ollama_utils.get_models()}
         summary_lines = [f"AMBIENTE DE TESTE: {sys_info_text}\n"]
-        for m_name, t_avg in averages:
+        for row in averages:
+            m_name = row.model_name
+            t_avg = row.avg_time
+            tps_avg = row.avg_tps
+            ttft_avg = row.avg_ttft
+            
             info = models_info.get(m_name, {})
-            line = f"- {m_name}: {t_avg:.2f}ms"
+            line = f"- {m_name}: Latencia {t_avg:.2f}ms, Speed {tps_avg:.2f} tok/s, TTFT {ttft_avg:.2f}ms"
             if info:
-                line += f" (Size: {info.get('size_gb')}GB, Params: {info.get('parameter_size')}, Quant: {info.get('quantization')})"
+                line += f" (Size: {info.get('size_gb')}GB, Params: {info.get('parameter_size')}, Quant: {info.get('quantization')}, Best Use: {info.get('best_use')})"
             summary_lines.append(line)
         
         summary_text = "\n".join(summary_lines)
@@ -203,12 +227,11 @@ def generate_report():
         # 1. Chart Section
         pdf.set_font('Helvetica', 'B', 16)
         pdf.set_text_color(30, 41, 59)
-        pdf.cell(0, 10, 'Comparativo de Performance', 0, 1)
-        pdf.ln(5)
+        pdf.cell(0, 12, '1. Comparativo de Performance', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+        pdf.ln(2)
         
         if chart_image_base64:
             try:
-                # chart_image_base64 comes as "data:image/png;base64,..."
                 header, encoded = chart_image_base64.split(",", 1)
                 img_data = base64.b64decode(encoded)
                 img_file = io.BytesIO(img_data)
@@ -217,50 +240,113 @@ def generate_report():
             except Exception as img_err:
                 print(f"Error processing chart image: {img_err}")
                 pdf.set_font('Helvetica', 'I', 10)
-                pdf.cell(0, 10, '(Erro ao carregar o gráfico no PDF)', 0, 1)
+                pdf.cell(0, 10, '(Erro ao carregar o gráfico no PDF)', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
 
-        # 2. Metrics Table
-        pdf.set_font('Helvetica', 'B', 14)
-        pdf.cell(0, 10, 'Métricas Detalhadas (Tempo Médio)', 0, 1)
-        pdf.ln(2)
+        # 2. Métricas Detalhadas (Tempo Médio)
+        pdf.set_font('Helvetica', 'B', 16)
+        pdf.set_text_color(30, 41, 59)
+        pdf.cell(0, 12, '2. Métricas Detalhadas (Tempo Médio)', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+        pdf.ln(4)
         
         # Table Header
-        pdf.set_fill_color(241, 245, 249)
-        pdf.set_font('Helvetica', 'B', 11)
-        pdf.cell(100, 10, 'Modelo', 1, 0, 'C', True)
-        pdf.cell(80, 10, 'Latência Média (ms)', 1, 1, 'C', True)
+        pdf.set_fill_color(30, 41, 59)
+        pdf.set_text_color(255, 255, 255)
+        pdf.set_font('Helvetica', 'B', 9)
+        
+        # Widths: Model (45), Quality (25), Speed (30), TTFT (30), Latency (50)
+        col_widths = [45, 25, 30, 30, 50]
+        
+        pdf.cell(col_widths[0], 10, ' Modelo', border=1, align='L', fill=True)
+        pdf.cell(col_widths[1], 10, 'Qualidade', border=1, align='C', fill=True)
+        pdf.cell(col_widths[2], 10, 'Speed (tok/s)', border=1, align='C', fill=True)
+        pdf.cell(col_widths[3], 10, 'TTFT (ms)', border=1, align='C', fill=True)
+        pdf.cell(col_widths[4], 10, 'Latência Média ', border=1, align='R', fill=True, new_x=XPos.LMARGIN, new_y=YPos.NEXT)
         
         # Table Rows
-        pdf.set_font('Helvetica', '', 11)
-        for m, t in averages:
-            pdf.cell(100, 10, f' {m}', 1, 0)
-            pdf.cell(80, 10, f'{t:.2f} ms ', 1, 1, 'R')
+        pdf.set_text_color(30, 41, 59)
+        pdf.set_font('Helvetica', '', 8)
+        fill = False
+        for row in averages:
+            m_name = row.model_name
+            info = models_info.get(m_name, {})
+            pdf.set_fill_color(248, 250, 252) if fill else pdf.set_fill_color(255, 255, 255)
+            
+            pdf.cell(col_widths[0], 10, f' {m_name}', border=1, align='L', fill=True)
+            pdf.cell(col_widths[1], 10, f"{info.get('quantization', '-')}", border=1, align='C', fill=True)
+            pdf.cell(col_widths[2], 10, f"{row.avg_tps:.2f}" if row.avg_tps else "0.00", border=1, align='C', fill=True)
+            pdf.cell(col_widths[3], 10, f"{row.avg_ttft:.2f}" if row.avg_ttft else "0.00", border=1, align='C', fill=True)
+            pdf.cell(col_widths[4], 10, f'{row.avg_time:.2f} ms ', border=1, align='R', fill=True, new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+            fill = not fill
         
         pdf.ln(10)
 
-        # 3. AI Analysis Section
-        pdf.set_font('Helvetica', 'B', 14)
-        pdf.cell(0, 10, 'Considerações Técnicas (IA)', 0, 1)
+        # 3. Prompt Section
+        pdf.set_font('Helvetica', 'B', 16)
+        pdf.set_text_color(30, 41, 59)
+        pdf.cell(0, 12, '3. Prompt Utilizado nos Testes', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
         pdf.ln(2)
-        pdf.set_font('Helvetica', '', 11)
-        # Handle potential encoding issues in fpdf2 with multi_cell
-        safe_text = analysis_text.encode('latin-1', 'replace').decode('latin-1')
-        pdf.multi_cell(0, 7, safe_text)
-        pdf.ln(5)
+        
+        pdf.set_font('Helvetica', 'I', 11)
+        pdf.set_text_color(71, 85, 105)
+        safe_prompt = used_prompt.encode('latin-1', 'replace').decode('latin-1')
+        pdf.multi_cell(0, 7, f'"{safe_prompt}"', border=0, align='L')
+        pdf.ln(10)
 
-        # 4. System Info Section
-        pdf.set_font('Helvetica', 'B', 12)
-        pdf.set_text_color(100, 116, 139)
-        pdf.cell(0, 10, 'Informações do Sistema', 0, 1)
-        pdf.set_font('Helvetica', '', 9)
-        pdf.cell(0, 5, f"Sistema: {sys_info['os']['sistema']} {sys_info['os']['release']} ({sys_info['os']['arquitetura']})", 0, 1)
-        pdf.cell(0, 5, f"Processador: {sys_info['cpu']['modelo']}", 0, 1)
-        pdf.cell(0, 5, f"CPU: {sys_info['cpu']['nucleos_fisicos']} Cores Físicos / {sys_info['cpu']['nucleos_logicos']} Threads", 0, 1)
-        pdf.cell(0, 5, f"Memória RAM: {sys_info['ram']['total_gb']} GB", 0, 1)
+        # 4. AI Analysis Section
+        pdf.set_font('Helvetica', 'B', 16)
+        pdf.set_text_color(30, 41, 59)
+        pdf.cell(0, 12, '4. Considerações Técnicas (IA)', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+        pdf.ln(4)
+        
+        pdf.set_font('Helvetica', '', 11)
+        pdf.set_fill_color(241, 245, 249)
+        # Background box for AI analysis
+        safe_text = analysis_text.encode('latin-1', 'replace').decode('latin-1')
+        pdf.multi_cell(0, 7, safe_text, border=0, align='L', fill=True)
+        pdf.ln(10)
+
+        # 5. System Info Section
+        pdf.set_font('Helvetica', 'B', 14)
+        pdf.set_text_color(30, 41, 59)
+        pdf.cell(0, 12, '5. Informações do Sistema', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+        pdf.ln(2)
+        
+        pdf.set_font('Helvetica', '', 10)
+        pdf.set_text_color(71, 85, 105)
+        
+        # Grid layout for system info
+        col_w = 90
+        pdf.set_font('Helvetica', 'B', 10)
+        pdf.cell(col_w, 7, 'Sistema Operacional:', new_x=XPos.RIGHT)
+        pdf.set_font('Helvetica', '', 10)
+        pdf.cell(col_w, 7, f"{sys_info['os']['sistema']} {sys_info['os']['release']} ({sys_info['os']['arquitetura']})", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+        
+        pdf.set_font('Helvetica', 'B', 10)
+        pdf.cell(col_w, 7, 'Processador:', new_x=XPos.RIGHT)
+        pdf.set_font('Helvetica', '', 10)
+        pdf.cell(col_w, 7, f"{sys_info['cpu']['modelo']}", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+        
+        pdf.set_font('Helvetica', 'B', 10)
+        pdf.cell(col_w, 7, 'CPU Config:', new_x=XPos.RIGHT)
+        pdf.set_font('Helvetica', '', 10)
+        pdf.cell(col_w, 7, f"{sys_info['cpu']['nucleos_fisicos']} Cores / {sys_info['cpu']['nucleos_logicos']} Threads", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+        
+        pdf.set_font('Helvetica', 'B', 10)
+        pdf.cell(col_w, 7, 'Memória RAM:', new_x=XPos.RIGHT)
+        pdf.set_font('Helvetica', '', 10)
+        pdf.cell(col_w, 7, f"{sys_info['ram']['total_gb']} GB", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+        
         if sys_info['gpu']:
             gpu_names = ", ".join([g.get('nome') or g.get('info', 'N/A') for g in sys_info['gpu']])
-            pdf.cell(0, 5, f"GPU: {gpu_names}", 0, 1)
-        pdf.cell(0, 5, f"Hostname: {sys_info['rede']['hostname']} ({sys_info['rede']['ip_local']})", 0, 1)
+            pdf.set_font('Helvetica', 'B', 10)
+            pdf.cell(col_w, 7, 'Placa de Vídeo (GPU):', new_x=XPos.RIGHT)
+            pdf.set_font('Helvetica', '', 10)
+            pdf.cell(col_w, 7, gpu_names, new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+        
+        pdf.set_font('Helvetica', 'B', 10)
+        pdf.cell(col_w, 7, 'Hostname / IP:', new_x=XPos.RIGHT)
+        pdf.set_font('Helvetica', '', 10)
+        pdf.cell(col_w, 7, f"{sys_info['rede']['hostname']} ({sys_info['rede']['ip_local']})", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
         
         # Output PDF
         pdf_bytes = pdf.output()

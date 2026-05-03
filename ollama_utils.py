@@ -3,6 +3,19 @@ import json
 
 OLLAMA_BASE_URL = "http://localhost:11434"
 
+def get_best_use(model_name):
+    """Heuristic to determine the best use case for a model based on its name."""
+    name = model_name.lower()
+    if any(k in name for k in ['code', 'coder', 'stable-code', 'sql', 'starcoder']):
+        return "Coding"
+    if any(k in name for k in ['math', 'logic', 'reasoning', 'phi-3', 'phi3']):
+        return "Reasoning"
+    if any(k in name for k in ['deepseek', 'wizard', 'uncensored']):
+        return "Specialized"
+    if any(k in name for k in ['llama', 'gemma', 'mistral', 'qwen', 'command', 'chat']):
+        return "General"
+    return "General"
+
 def get_models():
     """Retrieve all models installed in Ollama with details."""
     try:
@@ -11,12 +24,14 @@ def get_models():
         data = response.json()
         models_info = []
         for model in data.get('models', []):
+            name = model['name']
             details = model.get('details', {})
             models_info.append({
-                'name': model['name'],
+                'name': name,
                 'size_gb': round(model.get('size', 0) / (1024**3), 2),
                 'parameter_size': details.get('parameter_size', 'Unknown'),
-                'quantization': details.get('quantization_level', 'Unknown')
+                'quantization': details.get('quantization_level', 'Unknown'),
+                'best_use': get_best_use(name)
             })
         return models_info
     except Exception as e:
@@ -79,10 +94,22 @@ def run_test(model_name, prompt):
         execution_duration_ns = total_duration_ns - load_duration_ns
         execution_duration_ms = execution_duration_ns / 1_000_000.0
         
+        eval_count = data.get('eval_count', 0)
+        eval_duration_ns = data.get('eval_duration', 0)
+        prompt_eval_duration_ns = data.get('prompt_eval_duration', 0)
+        
+        # industry standard metrics
+        tokens_per_second = eval_count / (eval_duration_ns / 1_000_000_000.0) if eval_duration_ns > 0 else 0
+        ttft_ms = prompt_eval_duration_ns / 1_000_000.0
+        
         return {
             "success": True,
             "response": data.get('response', ''),
-            "total_duration_ms": execution_duration_ms
+            "total_duration_ms": execution_duration_ms,
+            "tokens_per_second": tokens_per_second,
+            "ttft_ms": ttft_ms,
+            "prompt_tokens": data.get('prompt_eval_count', 0),
+            "response_tokens": eval_count
         }
     except Exception as e:
         print(f"Error running test on {model_name}: {e}")

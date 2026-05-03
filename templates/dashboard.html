@@ -12,15 +12,29 @@
 {% endblock %}
 
 {% block content %}
-<div class="dashboard-grid">
+<div class="dashboard-grid" style="grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 1.5rem;">
     <div class="card chart-card">
-        <h3>Average Response Time (ms)</h3>
-        <div class="chart-container">
+        <h3>Avg Response Time (ms)</h3>
+        <div class="chart-container" style="height: 250px;">
             <canvas id="avgTimeChart"></canvas>
         </div>
     </div>
     
-    <div class="card history-card">
+    <div class="card chart-card">
+        <h3>Avg Speed (Tokens/s)</h3>
+        <div class="chart-container" style="height: 250px;">
+            <canvas id="avgTPSChart"></canvas>
+        </div>
+    </div>
+
+    <div class="card chart-card">
+        <h3>Avg Time to First Token (ms)</h3>
+        <div class="chart-container" style="height: 250px;">
+            <canvas id="avgTTFTChart"></canvas>
+        </div>
+    </div>
+    
+    <div class="card history-card" style="grid-column: 1 / -1;">
         <h3>Recent Tests</h3>
         <div class="table-responsive">
             <table class="data-table" id="recentTestsTable">
@@ -28,7 +42,10 @@
                     <tr>
                         <th>Model</th>
                         <th>Prompt snippet</th>
-                        <th>Time (ms)</th>
+                        <th>Latency (ms)</th>
+                        <th>Speed (tok/s)</th>
+                        <th>TTFT (ms)</th>
+                        <th>Tokens (P/R)</th>
                         <th>Date</th>
                     </tr>
                 </thead>
