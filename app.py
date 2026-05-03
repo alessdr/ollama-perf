@@ -92,6 +92,7 @@ def api_run_test():
         test_run = TestRun(
             model_name=model_name,
             prompt=prompt,
+            response=result['response'],
             response_time_ms=result['total_duration_ms'],
             tokens_per_second=result['tokens_per_second'],
             ttft_ms=result['ttft_ms'],

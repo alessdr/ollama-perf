@@ -1,13 +1,13 @@
 {% extends "base.html" %}
 
-{% block page_title %}Model Management{% endblock %}
+{% block page_title %}Model Inventory{% endblock %}
 
 {% block content %}
-<div class="card full-width">
+<div class="card" style="border-top: 2px solid var(--primary);">
     <div class="card-header">
-        <h3>Available Models</h3>
-        <button class="btn btn-primary" onclick="loadModelsList()">
-            <i data-lucide="refresh-cw" style="width: 16px; height: 16px;"></i> Refresh
+        <h3><i data-lucide="layers" style="width:16px; margin-right:8px;"></i> Local Repository</h3>
+        <button class="btn" onclick="loadModelsList()" style="border-color: var(--primary); color: var(--primary);">
+            <i data-lucide="refresh-ccw" style="width: 14px; height: 14px;"></i> Reload Registry
         </button>
     </div>
     
@@ -15,20 +15,38 @@
         <table class="data-table" id="modelsTable">
             <thead>
                 <tr>
-                    <th>Model Name</th>
-                    <th>Size (GB)</th>
+                    <th>Model Identifier</th>
+                    <th>Storage Size</th>
                     <th>Parameters</th>
-                    <th>Quantization</th>
-                    <th>Status</th>
-                    <th>Actions</th>
+                    <th>Precision</th>
+                    <th>Engine Status</th>
+                    <th style="text-align: right;">Control</th>
                 </tr>
             </thead>
             <tbody>
                 <tr>
-                    <td colspan="6" class="text-center">Loading models...</td>
+                    <td colspan="6" class="text-center" style="padding: 48px; opacity: 0.5;">
+                        <span class="spinner" style="display: inline-block; margin-bottom: 12px;"></span><br>
+                        Polling Ollama Service...
+                    </td>
                 </tr>
             </tbody>
         </table>
+    </div>
+</div>
+
+<div style="margin-top: 32px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px;">
+    <div class="card" style="padding: 24px;">
+        <h4 style="font-size: 0.7rem; text-transform: uppercase; color: var(--text-muted); margin-bottom: 8px;">Quantization Impact</h4>
+        <p style="font-size: 0.85rem;">Lower precision (Q4_K_M) offers higher speed with minimal loss in reasoning capability.</p>
+    </div>
+    <div class="card" style="padding: 24px;">
+        <h4 style="font-size: 0.7rem; text-transform: uppercase; color: var(--text-muted); margin-bottom: 8px;">VRAM Management</h4>
+        <p style="font-size: 0.85rem;">Ensure your total model size fits within your GPU's VRAM for optimal inference speed.</p>
+    </div>
+    <div class="card" style="padding: 24px;">
+        <h4 style="font-size: 0.7rem; text-transform: uppercase; color: var(--text-muted); margin-bottom: 8px;">Ollama API</h4>
+        <p style="font-size: 0.85rem;">Connected to local daemon at port 11434. Registry syncs automatically on reload.</p>
     </div>
 </div>
 {% endblock %}

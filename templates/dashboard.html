@@ -1,66 +1,85 @@
 {% extends "base.html" %}
 
-{% block page_title %}Dashboard{% endblock %}
+{% block page_title %}Operational Dashboard{% endblock %}
 
 {% block topbar_actions %}
-<button class="btn btn-primary" onclick="generateReport()" id="reportBtn">
-    <i data-lucide="file-text" style="width: 16px; height: 16px;"></i> <span id="reportBtnText">Gerar Relatório</span>
+<button class="btn" onclick="generateReport()" id="reportBtn" style="border-color: var(--primary); color: var(--primary);">
+    <i data-lucide="file-text" style="width: 14px; height: 14px;"></i> <span id="reportBtnText">Export Report</span>
 </button>
 <button class="btn btn-danger" onclick="clearDashboardData()">
-    <i data-lucide="trash-2" style="width: 16px; height: 16px;"></i> Clear Test Data
+    <i data-lucide="zap-off" style="width: 14px; height: 14px;"></i> Wipe Data
 </button>
 {% endblock %}
 
 {% block content %}
-<div class="dashboard-grid" style="grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 1.5rem;">
-    <div class="card chart-card">
-        <h3>Avg Response Time (ms)</h3>
-        <div class="chart-container" style="height: 250px;">
-            <canvas id="avgTimeChart"></canvas>
+<div style="display: grid; grid-template-columns: 1.2fr 0.8fr; gap: 32px;">
+    <!-- Column 1: History and Main Metric -->
+    <div style="display: flex; flex-direction: column; gap: 32px;">
+        <div class="card">
+            <div class="card-header">
+                <h3><i data-lucide="clock" style="width:16px; margin-right:8px;"></i> Avg Response Time (ms)</h3>
+            </div>
+            <div class="chart-container" style="height: 320px;">
+                <canvas id="avgTimeChart"></canvas>
+            </div>
         </div>
-    </div>
-    
-    <div class="card chart-card">
-        <h3>Avg Speed (Tokens/s)</h3>
-        <div class="chart-container" style="height: 250px;">
-            <canvas id="avgTPSChart"></canvas>
+
+        <div class="card">
+            <div class="card-header">
+                <h3><i data-lucide="history" style="width:16px; margin-right:8px;"></i> Performance History</h3>
+            </div>
+            <div class="table-responsive">
+                <table class="data-table" id="recentTestsTable">
+                    <thead>
+                        <tr>
+                            <th>Model</th>
+                            <th>Prompt</th>
+                            <th>Latency</th>
+                            <th>Speed</th>
+                            <th>TTFT</th>
+                            <th>Tokens</th>
+                            <th>Timestamp</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- Populated via JS -->
+                    </tbody>
+                </table>
+            </div>
         </div>
     </div>
 
-    <div class="card chart-card">
-        <h3>Avg Time to First Token (ms)</h3>
-        <div class="chart-container" style="height: 250px;">
-            <canvas id="avgTTFTChart"></canvas>
+    <!-- Column 2: Secondary Metrics -->
+    <div style="display: flex; flex-direction: column; gap: 32px;">
+        <div class="card">
+            <div class="card-header">
+                <h3><i data-lucide="gauge" style="width:16px; margin-right:8px;"></i> Throughput (tok/s)</h3>
+            </div>
+            <div class="chart-container" style="height: 220px;">
+                <canvas id="avgTPSChart"></canvas>
+            </div>
         </div>
-    </div>
-    
-    <div class="card history-card" style="grid-column: 1 / -1;">
-        <h3>Recent Tests</h3>
-        <div class="table-responsive">
-            <table class="data-table" id="recentTestsTable">
-                <thead>
-                    <tr>
-                        <th>Model</th>
-                        <th>Prompt snippet</th>
-                        <th title="Tempo total de resposta, desconsiderando o tempo de carregamento inicial do modelo.">
-                            Latency (ms) <i data-lucide="info" style="width: 12px; height: 12px; opacity: 0.5;"></i>
-                        </th>
-                        <th title="Velocidade de geração: quantos tokens o modelo produz por segundo.">
-                            Speed (tok/s) <i data-lucide="info" style="width: 12px; height: 12px; opacity: 0.5;"></i>
-                        </th>
-                        <th title="Time To First Token: Tempo de processamento do prompt até o início da geração.">
-                            TTFT (ms) <i data-lucide="info" style="width: 12px; height: 12px; opacity: 0.5;"></i>
-                        </th>
-                        <th title="Contagem de tokens: Prompt (Entrada) / Response (Saída).">
-                            Tokens (P/R) <i data-lucide="info" style="width: 12px; height: 12px; opacity: 0.5;"></i>
-                        </th>
-                        <th>Date</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <!-- Populated via JS -->
-                </tbody>
-            </table>
+
+        <div class="card">
+            <div class="card-header">
+                <h3><i data-lucide="timer" style="width:16px; margin-right:8px;"></i> Initial Response (TTFT)</h3>
+            </div>
+            <div class="chart-container" style="height: 220px;">
+                <canvas id="avgTTFTChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Quick Insights Card -->
+        <div class="card" style="border-color: rgba(249, 115, 22, 0.2);">
+            <div class="card-header">
+                <h3 style="color: var(--primary);">System Insights</h3>
+            </div>
+            <div style="font-size: 0.85rem; color: var(--text-muted); line-height: 1.6;">
+                <p>Monitor real-time LLM metrics across your local Ollama instance. Use the <strong>Export</strong> feature to generate technical audit reports.</p>
+                <div style="margin-top: 16px; padding: 12px; background: rgba(255,255,255,0.02); border-left: 2px solid var(--primary);">
+                    Tip: Sequential tests help compare quantization effects on similar models.
+                </div>
+            </div>
         </div>
     </div>
 </div>

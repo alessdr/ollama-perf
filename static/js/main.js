@@ -1,3 +1,17 @@
+// Global SweetAlert2 Config for Signal & Pulse Theme
+const SignalAlert = Swal.mixin({
+    background: '#09090b',
+    color: '#fafafa',
+    confirmButtonColor: '#f97316',
+    cancelButtonColor: '#27272a',
+    borderRadius: '0px',
+    customClass: {
+        popup: 'swal-signal-popup',
+        confirmButton: 'swal-signal-btn',
+        cancelButton: 'swal-signal-btn'
+    }
+});
+
 // Common utility functions
 async function fetchAPI(url, options = {}) {
     try {
@@ -9,7 +23,12 @@ async function fetchAPI(url, options = {}) {
         return { success: true, data };
     } catch (error) {
         console.error('API Error:', error);
-        alert(error.message);
+        SignalAlert.fire({
+            icon: 'error',
+            title: 'SYSTEM ERROR',
+            text: error.message,
+            confirmButtonText: 'ACKNOWLEDGE'
+        });
         return { success: false, error: error.message };
     }
 }
@@ -18,6 +37,7 @@ async function fetchAPI(url, options = {}) {
 let avgTimeChartInstance = null;
 let avgTPSChartInstance = null;
 let avgTTFTChartInstance = null;
+let recentTestsCache = [];
 
 async function loadDashboardData() {
     const tableBody = document.querySelector('#recentTestsTable tbody');
@@ -27,25 +47,33 @@ async function loadDashboardData() {
     if (!res.success) return;
 
     const data = res.data;
+    recentTestsCache = data.recent;
 
     // Render Table
     tableBody.innerHTML = '';
     if (data.recent.length === 0) {
         tableBody.innerHTML = '<tr><td colspan="7" class="text-center">No tests run yet.</td></tr>';
     } else {
-        data.recent.forEach(test => {
+        data.recent.forEach((test, index) => {
             const row = document.createElement('tr');
-            const promptSnippet = test.prompt.length > 50 ? test.prompt.substring(0, 50) + '...' : test.prompt;
+            row.setAttribute('onclick', `showTestDetails(${index})`);
+            row.classList.add('clickable-row');
+            
+            const promptSnippet = test.prompt.length > 20 ? test.prompt.substring(0, 20) + '...' : test.prompt;
             const dateStr = new Date(test.created_at).toLocaleString();
             
             row.innerHTML = `
                 <td><strong>${test.model_name}</strong></td>
-                <td title="${test.prompt}">${promptSnippet}</td>
-                <td>${test.response_time_ms.toFixed(2)}</td>
-                <td>${test.tokens_per_second ? test.tokens_per_second.toFixed(2) : '-'}</td>
-                <td>${test.ttft_ms ? test.ttft_ms.toFixed(2) : '-'}</td>
+                <td>
+                    <span class="prompt-badge-static">
+                        <i data-lucide="eye" style="width:12px;height:12px;"></i> ${promptSnippet}
+                    </span>
+                </td>
+                <td><span style="color: var(--primary);">${test.response_time_ms.toFixed(2)}</span></td>
+                <td style="font-family: var(--font-code);">${test.tokens_per_second ? test.tokens_per_second.toFixed(2) : '-'}</td>
+                <td style="font-family: var(--font-code);">${test.ttft_ms ? test.ttft_ms.toFixed(2) : '-'}</td>
                 <td><small>${test.prompt_tokens || 0} / ${test.response_tokens || 0}</small></td>
-                <td>${dateStr}</td>
+                <td><small style="color: var(--text-muted);">${dateStr}</small></td>
             `;
             tableBody.appendChild(row);
         });
@@ -61,7 +89,7 @@ async function loadDashboardData() {
         labels, 
         data.averages.map(a => a.avg_time_ms), 
         'Latency (ms)', 
-        'rgba(59, 130, 246, 0.6)', 
+        'rgba(249, 115, 22, 0.4)', 
         avgTimeChartInstance,
         'ms'
     );
@@ -72,7 +100,7 @@ async function loadDashboardData() {
         labels, 
         data.averages.map(a => a.avg_tps), 
         'Speed (Tok/s)', 
-        'rgba(16, 185, 129, 0.6)', 
+        'rgba(34, 197, 94, 0.4)', 
         avgTPSChartInstance,
         'tok/s'
     );
@@ -83,7 +111,7 @@ async function loadDashboardData() {
         labels, 
         data.averages.map(a => a.avg_ttft), 
         'TTFT (ms)', 
-        'rgba(245, 158, 11, 0.6)', 
+        'rgba(161, 161, 170, 0.4)', 
         avgTTFTChartInstance,
         'ms'
     );
@@ -91,6 +119,56 @@ async function loadDashboardData() {
     if (window.lucide) {
         window.lucide.createIcons();
     }
+}
+
+function showTestDetails(index) {
+    const test = recentTestsCache[index];
+    if (!test) return;
+
+    SignalAlert.fire({
+        title: `LOG INSPECTION: ${test.model_name}`,
+        width: '800px',
+        html: `
+            <div style="text-align: left; font-family: var(--font-family);">
+                <!-- Prompt Section -->
+                <div style="margin-bottom: 20px;">
+                    <div style="font-size: 0.7rem; text-transform: uppercase; color: var(--primary); margin-bottom: 8px; letter-spacing: 0.1em;">Test Prompt</div>
+                    <div style="background: #000; padding: 16px; border: 1px solid var(--border); font-family: var(--font-code); font-size: 0.85rem; color: #d4d4d8; white-space: pre-wrap; max-height: 150px; overflow-y: auto;">${test.prompt}</div>
+                </div>
+
+                <!-- Model Response Section -->
+                <div style="margin-bottom: 20px;">
+                    <div style="font-size: 0.7rem; text-transform: uppercase; color: var(--success); margin-bottom: 8px; letter-spacing: 0.1em;">Model Response</div>
+                    <div style="background: #000; padding: 16px; border: 1px solid var(--border); font-family: var(--font-code); font-size: 0.85rem; color: var(--success); white-space: pre-wrap; max-height: 250px; overflow-y: auto;">${test.response || '<span style="color:var(--text-muted); opacity: 0.5;">[DATA NOT PERSISTED IN OLD LOGS]</span>'}</div>
+                </div>
+
+                <!-- Technical Metrics Grid -->
+                <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px;">
+                    <div style="background: rgba(255,255,255,0.02); padding: 12px; border: 1px solid var(--border);">
+                        <span style="font-size: 0.6rem; color: var(--text-muted); display: block; text-transform: uppercase;">Latency</span>
+                        <span style="font-size: 0.9rem; font-weight: 600; font-family: var(--font-code);">${test.response_time_ms.toFixed(2)}ms</span>
+                    </div>
+                    <div style="background: rgba(255,255,255,0.02); padding: 12px; border: 1px solid var(--border);">
+                        <span style="font-size: 0.6rem; color: var(--text-muted); display: block; text-transform: uppercase;">Speed</span>
+                        <span style="font-size: 0.9rem; font-weight: 600; font-family: var(--font-code);">${test.tokens_per_second ? test.tokens_per_second.toFixed(2) : '0.00'}t/s</span>
+                    </div>
+                    <div style="background: rgba(255,255,255,0.02); padding: 12px; border: 1px solid var(--border);">
+                        <span style="font-size: 0.6rem; color: var(--text-muted); display: block; text-transform: uppercase;">TTFT</span>
+                        <span style="font-size: 0.9rem; font-weight: 600; font-family: var(--font-code);">${test.ttft_ms ? test.ttft_ms.toFixed(2) : '0.00'}ms</span>
+                    </div>
+                    <div style="background: rgba(255,255,255,0.02); padding: 12px; border: 1px solid var(--border);">
+                        <span style="font-size: 0.6rem; color: var(--text-muted); display: block; text-transform: uppercase;">Tokens</span>
+                        <span style="font-size: 0.9rem; font-weight: 600; font-family: var(--font-code);">${test.prompt_tokens || 0}/${test.response_tokens || 0}</span>
+                    </div>
+                </div>
+
+                <div style="margin-top: 16px; font-size: 0.7rem; color: var(--text-muted); text-align: right;">
+                    Diagnostic Timestamp: ${new Date(test.created_at).toLocaleString()}
+                </div>
+            </div>
+        `,
+        confirmButtonText: 'CLOSE INSPECTOR'
+    });
 }
 
 function createBarChart(canvasId, labels, data, label, color, existingInstance, unit) {
@@ -106,11 +184,10 @@ function createBarChart(canvasId, labels, data, label, color, existingInstance, 
                 label: label,
                 data: data,
                 backgroundColor: color,
-                borderColor: color.replace('0.6', '1'),
-                borderWidth: 2,
-                borderRadius: 6,
-                barThickness: 'flex',
-                maxBarThickness: 50
+                borderColor: color.replace('0.4', '1'),
+                borderWidth: 1,
+                borderRadius: 0,
+                barThickness: 20
             }]
         },
         options: {
@@ -119,24 +196,28 @@ function createBarChart(canvasId, labels, data, label, color, existingInstance, 
             scales: {
                 y: {
                     beginAtZero: true,
-                    grid: { color: 'rgba(255, 255, 255, 0.15)', drawBorder: false },
+                    grid: { color: 'rgba(255, 255, 255, 0.05)', drawBorder: false },
                     ticks: { 
-                        color: '#94a3b8', 
-                        font: { size: 10 },
+                        color: '#71717a', 
+                        font: { size: 10, family: 'JetBrains Mono' },
                         callback: (v) => v + ' ' + unit
                     }
                 },
                 x: {
                     grid: { display: false },
-                    ticks: { color: '#94a3b8', font: { size: 10 } }
+                    ticks: { color: '#71717a', font: { size: 10, family: 'JetBrains Mono' } }
                 }
             },
             plugins: {
                 legend: { display: false },
                 tooltip: {
-                    backgroundColor: '#1e293b',
-                    padding: 10,
-                    cornerRadius: 8
+                    backgroundColor: '#09090b',
+                    titleFont: { family: 'Outfit', size: 13 },
+                    bodyFont: { family: 'JetBrains Mono', size: 11 },
+                    padding: 12,
+                    cornerRadius: 0,
+                    borderColor: '#27272a',
+                    borderWidth: 1
                 }
             }
         }
@@ -144,19 +225,34 @@ function createBarChart(canvasId, labels, data, label, color, existingInstance, 
 }
 
 async function clearDashboardData() {
-    if (!confirm("Tem certeza que deseja zerar todos os dados dos testes? Esta ação não pode ser desfeita.")) {
-        return;
-    }
-    
-    const res = await fetchAPI('/api/dashboard/clear', {
-        method: 'POST'
+    const result = await SignalAlert.fire({
+        title: 'WIPE ALL DATA?',
+        text: "This action will permanently delete all test metrics from the database.",
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: 'CONFIRM WIPE',
+        cancelButtonText: 'ABORT',
+        reverseButtons: true
     });
-    
-    if (res.success) {
-        if (avgTimeChartInstance) avgTimeChartInstance.destroy();
-        if (avgTPSChartInstance) avgTPSChartInstance.destroy();
-        if (avgTTFTChartInstance) avgTTFTChartInstance.destroy();
-        loadDashboardData();
+
+    if (result.isConfirmed) {
+        const res = await fetchAPI('/api/dashboard/clear', {
+            method: 'POST'
+        });
+        
+        if (res.success) {
+            SignalAlert.fire({
+                icon: 'success',
+                title: 'DATA WIPED',
+                text: 'The diagnostic database has been cleared.',
+                timer: 2000,
+                showConfirmButton: false
+            });
+            if (avgTimeChartInstance) avgTimeChartInstance.destroy();
+            if (avgTPSChartInstance) avgTPSChartInstance.destroy();
+            if (avgTTFTChartInstance) avgTTFTChartInstance.destroy();
+            loadDashboardData();
+        }
     }
 }
 
@@ -166,7 +262,12 @@ async function generateReport() {
     const canvas = document.getElementById('avgTimeChart');
     
     if (!canvas || !avgTimeChartInstance) {
-        alert("Nenhum dado disponível para gerar o relatório.");
+        SignalAlert.fire({
+            icon: 'info',
+            title: 'NO DATA',
+            text: "Nenhum dado disponível para gerar o relatório.",
+            confirmButtonText: 'UNDERSTOOD'
+        });
         return;
     }
 
@@ -203,7 +304,11 @@ async function generateReport() {
         document.body.removeChild(a);
     } catch (error) {
         console.error('Report Error:', error);
-        alert(error.message);
+        SignalAlert.fire({
+            icon: 'error',
+            title: 'REPORT FAILED',
+            text: error.message
+        });
     } finally {
         btn.disabled = false;
         btnText.innerText = originalText;
@@ -315,12 +420,20 @@ async function runTest(event) {
     const resultBox = document.getElementById('testResultContent');
 
     if (!modelName) {
-        alert("Please select a model.");
+        SignalAlert.fire({
+            icon: 'warning',
+            title: 'SELECTION REQUIRED',
+            text: "Please select a model for diagnostics.",
+            confirmButtonText: 'OK'
+        });
         return;
     }
 
     // Set loading state
     btn.disabled = true;
+    selectEl.disabled = true;
+    document.getElementById('promptInput').disabled = true;
+    
     btnText.textContent = 'Running Test...';
     spinner.classList.remove('hidden');
     const runIcon = document.getElementById('runIcon');
@@ -334,11 +447,15 @@ async function runTest(event) {
             .map(opt => opt.value)
             .filter(val => val !== '' && val !== 'ALL');
             
-        logToConsole(`Starting sequential test for ${modelsToTest.length} models...`);
+        const totalModels = modelsToTest.length;
+        logToConsole(`Starting sequential test for ${totalModels} models...`);
         
-        for (const m of modelsToTest) {
-            logToConsole(`Testing model: ${m}...`);
-            resultBox.innerHTML += `<div style="margin-bottom: 20px;"><h4>Evaluating: ${m}</h4><p class="placeholder-text" style="color: var(--text-muted);">Waiting for response...</p></div>`;
+        for (let i = 0; i < totalModels; i++) {
+            const m = modelsToTest[i];
+            const currentProgress = `(${i + 1}/${totalModels})`;
+            
+            logToConsole(`Testing model ${currentProgress}: ${m}...`);
+            resultBox.innerHTML += `<div style="margin-bottom: 20px;"><h4>Evaluating ${currentProgress}: ${m}</h4><p class="placeholder-text" style="color: var(--text-muted);">Waiting for response...</p></div>`;
             resultBox.scrollTop = resultBox.scrollHeight;
             
             const res = await fetchAPI('/api/test', {
@@ -404,11 +521,22 @@ async function runTest(event) {
         }
     }
 
-    // Reset button state
+    // Reset button and input states
     btn.disabled = false;
+    selectEl.disabled = false;
+    document.getElementById('promptInput').disabled = false;
+    
     btnText.textContent = 'Run Test';
     spinner.classList.add('hidden');
     if (runIcon) runIcon.classList.remove('hidden');
+
+    // Completion Popup
+    SignalAlert.fire({
+        icon: 'success',
+        title: 'DIAGNOSTIC COMPLETE',
+        text: modelName === 'ALL' ? 'Sequential testing of all models finished.' : `Test for ${modelName} finished successfully.`,
+        confirmButtonText: 'VIEW METRICS'
+    });
 }
 
 // --- Console Helper ---

@@ -1,48 +1,78 @@
 {% extends "base.html" %}
 
-{% block page_title %}Run Performance Test{% endblock %}
+{% block page_title %}Performance Diagnostics{% endblock %}
 
 {% block content %}
-<div class="test-container">
-    <div class="card form-card">
-        <h3>Configure Test</h3>
-        <form id="testForm" onsubmit="runTest(event)">
-            <div class="form-group">
-                <label for="modelSelect">Select Model</label>
-                <select id="modelSelect" class="form-control" required>
-                    <option value="">Loading...</option>
-                </select>
+<div style="display: grid; grid-template-columns: 400px 1fr; gap: 32px; align-items: start;">
+    <!-- Config Column -->
+    <div style="display: flex; flex-direction: column; gap: 32px;">
+        <div class="card">
+            <div class="card-header">
+                <h3><i data-lucide="settings" style="width:16px; margin-right:8px;"></i> Test Configuration</h3>
             </div>
-            
-            <div class="form-group">
-                <label for="promptInput">Prompt</label>
-                <textarea id="promptInput" class="form-control" rows="5" required placeholder="Enter the prompt to test..."></textarea>
+            <form id="testForm" onsubmit="runTest(event)">
+                <div class="form-group">
+                    <label for="modelSelect">Target Model</label>
+                    <select id="modelSelect" class="form-control" required style="background: var(--bg-color); border-radius: 0;">
+                        <option value="">Detecting models...</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label for="promptInput">Test Prompt</label>
+                    <textarea id="promptInput" class="form-control" rows="8" required placeholder="Enter sequence for performance evaluation..." style="background: var(--bg-color); border-radius: 0; font-family: var(--font-code); font-size: 0.85rem;"></textarea>
+                </div>
+                
+                <button type="submit" class="btn btn-primary btn-block" id="runTestBtn" style="height: 50px;">
+                    <i data-lucide="zap" style="width:16px;height:16px;" id="runIcon"></i>
+                    <span class="btn-text">Execute Diagnostic</span>
+                    <span class="spinner hidden"></span>
+                </button>
+            </form>
+        </div>
+
+        <div class="card" style="border-style: dashed;">
+            <div class="card-header">
+                <h3><i data-lucide="info" style="width:16px; margin-right:8px;"></i> Session Info</h3>
             </div>
-            
-            <button type="submit" class="btn btn-primary btn-block" id="runTestBtn">
-                <i data-lucide="play" style="width:16px;height:16px;" id="runIcon"></i>
-                <span class="btn-text">Run Test</span>
-                <span class="spinner hidden"></span>
-            </button>
-        </form>
-    </div>
-    
-    <div class="card result-card">
-        <h3>Test Result</h3>
-        <div id="testResultContent" class="result-content empty">
-            <p class="placeholder-text">Run a test to see the results here.</p>
+            <div style="font-size: 0.75rem; color: var(--text-muted); display: flex; flex-direction: column; gap: 8px;">
+                <div style="display: flex; justify-content: space-between;">
+                    <span>Quantization Check</span>
+                    <span style="color: var(--success);">ENABLED</span>
+                </div>
+                <div style="display: flex; justify-content: space-between;">
+                    <span>Auto-Save to DB</span>
+                    <span style="color: var(--success);">ACTIVE</span>
+                </div>
+            </div>
         </div>
     </div>
-    <div class="card console-card col-span-2">
-        <h3>Execution Console</h3>
-        <div class="console-wrapper">
-            <div class="console-header">
-                <div class="mac-dot close"></div>
-                <div class="mac-dot min"></div>
-                <div class="mac-dot max"></div>
+    
+    <!-- Results Column -->
+    <div style="display: flex; flex-direction: column; gap: 32px;">
+        <div class="card" style="display: flex; flex-direction: column;">
+            <div class="card-header">
+                <h3><i data-lucide="terminal" style="width:16px; margin-right:8px;"></i> Output Stream</h3>
             </div>
-            <div id="executionConsole" class="console-box">
-                <p><span class="console-time">[System]</span> Ready to execute tests.</p>
+            <div id="testResultContent" class="result-content empty">
+                <p style="opacity: 0.4;">[WAITING FOR EXECUTION]</p>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <h3><i data-lucide="cpu" style="width:16px; margin-right:8px;"></i> Execution Log</h3>
+            </div>
+            <div class="console-wrapper" style="border: 1px solid var(--border); border-radius: 0;">
+                <div class="console-header" style="background: var(--sidebar-bg); border-bottom: 1px solid var(--border);">
+                    <div class="mac-dot close" style="width: 10px; height: 10px;"></div>
+                    <div class="mac-dot min" style="width: 10px; height: 10px;"></div>
+                    <div class="mac-dot max" style="width: 10px; height: 10px;"></div>
+                    <span style="font-size: 0.65rem; color: var(--text-muted); margin-left: 8px; text-transform: uppercase; letter-spacing: 0.05em;">Ollama Diagnostics v2.0</span>
+                </div>
+                <div id="executionConsole" class="console-box" style="height: 180px; background: #000; color: var(--primary);">
+                    <p><span class="console-time">[SYSTEM]</span> Diagnostic environment initialized.</p>
+                </div>
             </div>
         </div>
     </div>
