@@ -473,7 +473,24 @@ body {
     transition: var(--transition);
 }
 
-.clickable-row:hover .prompt-badge-static {
-    border-color: var(--primary);
-    background: rgba(249, 115, 22, 0.1);
+/* SweetAlert2 Overrides */
+.swal-signal-popup {
+    border: 1px solid var(--border) !important;
+    border-radius: 0 !important;
+}
+
+.swal-signal-btn {
+    border-radius: 0 !important;
+    font-family: var(--font-family) !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.05em !important;
+    font-weight: 600 !important;
+}
+
+.swal2-loader {
+    border-color: var(--primary) transparent var(--primary) transparent !important;
+}
+
+.swal2-timer-progress-bar {
+    background: var(--primary) !important;
 }

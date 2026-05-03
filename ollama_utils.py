@@ -72,6 +72,15 @@ def unload_model(model_name):
         print(f"Error unloading model {model_name}: {e}")
         return False
 
+def unload_all_models():
+    """Unload all models currently in memory."""
+    running = get_running_models()
+    results = []
+    for model in running:
+        print(f"Unloading model: {model}")
+        results.append(unload_model(model))
+    return all(results) if results else True
+
 def run_test(model_name, prompt):
     """Run a prompt through the model and return the performance metrics."""
     try:
@@ -148,9 +157,10 @@ def generate_analysis(model_name, data_summary):
             "prompt": prompt,
             "stream": False
         }
-        response = requests.post(f"{OLLAMA_BASE_URL}/api/generate", json=payload)
+        # Adicionado timeout para evitar travamentos no relatório
+        response = requests.post(f"{OLLAMA_BASE_URL}/api/generate", json=payload, timeout=15)
         response.raise_for_status()
-        return response.json().get('response', 'Análise não disponível.')
+        return response.json().get('response', 'Análise técnica não disponível no momento.')
     except Exception as e:
         print(f"Error generating analysis with {model_name}: {e}")
         return f"Não foi possível gerar a análise automática: {e}"

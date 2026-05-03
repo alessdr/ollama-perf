@@ -12,6 +12,10 @@ const SignalAlert = Swal.mixin({
     }
 });
 
+// Global State for Stopping Tests
+let currentTestAbortController = null;
+let isStopRequested = false;
+
 // Common utility functions
 async function fetchAPI(url, options = {}) {
     try {
@@ -259,9 +263,11 @@ async function clearDashboardData() {
 async function generateReport() {
     const btn = document.getElementById('reportBtn');
     const btnText = document.getElementById('reportBtnText');
-    const canvas = document.getElementById('avgTimeChart');
+    const canvasTime = document.getElementById('avgTimeChart');
+    const canvasTPS = document.getElementById('avgTPSChart');
+    const canvasTTFT = document.getElementById('avgTTFTChart');
     
-    if (!canvas || !avgTimeChartInstance) {
+    if (!canvasTime || !avgTimeChartInstance) {
         SignalAlert.fire({
             icon: 'info',
             title: 'NO DATA',
@@ -273,10 +279,23 @@ async function generateReport() {
 
     const originalText = btnText.innerText;
     btn.disabled = true;
-    btnText.innerText = 'Gerando...';
+    btnText.innerText = 'Analyzing...';
+
+    // Show Loading Modal
+    SignalAlert.fire({
+        title: 'GENERATING AUDIT REPORT',
+        html: 'Capturing charts and compiling AI technical analysis...<br><br><div class="custom-loader"></div>',
+        allowOutsideClick: false,
+        showConfirmButton: false,
+        didOpen: () => {
+            Swal.showLoading();
+        }
+    });
 
     try {
-        const chartImage = canvas.toDataURL('image/png');
+        const chartImageTime = canvasTime.toDataURL('image/png');
+        const chartImageTPS = canvasTPS ? canvasTPS.toDataURL('image/png') : null;
+        const chartImageTTFT = canvasTTFT ? canvasTTFT.toDataURL('image/png') : null;
         
         const response = await fetch('/api/report/generate', {
             method: 'POST',
@@ -284,7 +303,9 @@ async function generateReport() {
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify({
-                chart_image: chartImage
+                chart_latency: chartImageTime,
+                chart_speed: chartImageTPS,
+                chart_ttft: chartImageTTFT
             })
         });
 
@@ -312,6 +333,7 @@ async function generateReport() {
     } finally {
         btn.disabled = false;
         btnText.innerText = originalText;
+        Swal.close();
     }
 }
 
@@ -418,6 +440,14 @@ async function runTest(event) {
     const btnText = btn.querySelector('.btn-text');
     const spinner = btn.querySelector('.spinner');
     const resultBox = document.getElementById('testResultContent');
+    
+    // Show Stop Button
+    const stopBtn = document.getElementById('stopTestBtn');
+    if (stopBtn) stopBtn.classList.remove('hidden');
+
+    // Reset Stop State
+    isStopRequested = false;
+    currentTestAbortController = new AbortController();
 
     if (!modelName) {
         SignalAlert.fire({
@@ -442,6 +472,8 @@ async function runTest(event) {
     resultBox.innerHTML = '';
     resultBox.classList.remove('empty');
 
+    logToConsole('Diagnostic environment initialized...');
+
     if (modelName === 'ALL') {
         const modelsToTest = Array.from(selectEl.options)
             .map(opt => opt.value)
@@ -451,44 +483,64 @@ async function runTest(event) {
         logToConsole(`Starting sequential test for ${totalModels} models...`);
         
         for (let i = 0; i < totalModels; i++) {
+            if (isStopRequested) break;
+
             const m = modelsToTest[i];
             const currentProgress = `(${i + 1}/${totalModels})`;
             
-            logToConsole(`Testing model ${currentProgress}: ${m}...`);
-            resultBox.innerHTML += `<div style="margin-bottom: 20px;"><h4>Evaluating ${currentProgress}: ${m}</h4><p class="placeholder-text" style="color: var(--text-muted);">Waiting for response...</p></div>`;
-            resultBox.scrollTop = resultBox.scrollHeight;
-            
-            const res = await fetchAPI('/api/test', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ model_name: m, prompt: prompt })
-            });
-            
-            // Remove the loading text for this model
-            resultBox.lastChild.remove();
-            
-            if (res.success) {
-                const data = res.data.metrics;
-                logToConsole(`[${m}] Test completed: ${data.total_duration_ms.toFixed(2)} ms`);
-                resultBox.innerHTML += `
-                    <div style="margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px dashed var(--border);">
-                        <h4 style="color: var(--primary); margin-bottom: 10px;">${m}</h4>
-                        <div>${data.response.replace(/\n/g, '<br>')}</div>
-                        <div class="metric-text" style="margin-top: 10px; padding-top: 0; border: none; font-size: 1rem;">
-                            Response Time: ${data.total_duration_ms.toFixed(2)} ms
+            try {
+                logToConsole(`Testing model ${currentProgress}: ${m}...`);
+                resultBox.innerHTML += `<div style="margin-bottom: 20px;"><h4>Evaluating ${currentProgress}: ${m}</h4><p class="placeholder-text" style="color: var(--text-muted);">Waiting for response...</p></div>`;
+                resultBox.scrollTop = resultBox.scrollHeight;
+                
+                const res = await fetchAPI('/api/test', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ model_name: m, prompt: prompt }),
+                    signal: currentTestAbortController.signal
+                });
+                
+                // Remove the loading text for this model
+                resultBox.lastChild.remove();
+                
+                if (res.success) {
+                    const data = res.data.metrics;
+                    logToConsole(`[${m}] Test completed: ${data.total_duration_ms.toFixed(2)} ms`);
+                    resultBox.innerHTML += `
+                        <div style="margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px dashed var(--border);">
+                            <h4 style="color: var(--primary); margin-bottom: 10px;">${m}</h4>
+                            <div>${data.response.replace(/\n/g, '<br>')}</div>
+                            <div class="metric-text" style="margin-top: 10px; padding-top: 0; border: none; font-size: 1rem;">
+                                Response Time: ${data.total_duration_ms.toFixed(2)} ms
+                            </div>
                         </div>
-                    </div>
-                `;
-            } else {
-                logToConsole(`[${m}] Test failed: ${res.error}`, true);
-                resultBox.innerHTML += `
-                    <div style="margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px dashed var(--border);">
-                        <h4 style="color: var(--danger); margin-bottom: 10px;">${m}</h4>
-                        <p style="color: var(--danger)">Error: ${res.error}</p>
-                    </div>
-                `;
+                    `;
+                } else {
+                    if (isStopRequested) throw new Error("Stop Requested");
+                    logToConsole(`[${m}] Test failed: ${res.error}`, true);
+                    resultBox.innerHTML += `
+                        <div style="margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px dashed var(--border);">
+                            <h4 style="color: var(--danger); margin-bottom: 10px;">${m}</h4>
+                            <p style="color: var(--danger)">Error: ${res.error}</p>
+                        </div>
+                    `;
+                }
+            } catch (err) {
+                if (isStopRequested) {
+                    logToConsole(`[${m}] Test aborted by user.`, true);
+                } else {
+                    logToConsole(`[${m}] Unexpected error: ${err.message}`, true);
+                }
+            } finally {
+                // ALWAYS unload model to save VRAM, even if aborted
+                logToConsole(`[${m}] Releasing VRAM resources...`);
+                await fetchAPI('/api/models/unload', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ model_name: m })
+                });
+                resultBox.scrollTop = resultBox.scrollHeight;
             }
-            resultBox.scrollTop = resultBox.scrollHeight;
         }
         logToConsole(`Sequential testing completed.`);
     } else {
@@ -498,26 +550,44 @@ async function runTest(event) {
         resultBox.innerHTML = '<p class="placeholder-text">Waiting for response...</p>';
 
         logToConsole(`Request sent to Ollama API. Waiting for response...`);
-        const res = await fetchAPI('/api/test', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ model_name: modelName, prompt: prompt })
-        });
+        try {
+            const res = await fetchAPI('/api/test', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ model_name: modelName, prompt: prompt }),
+                signal: currentTestAbortController.signal
+            });
 
-        if (res.success) {
-            const data = res.data.metrics;
-            logToConsole(`Test completed successfully.`);
-            logToConsole(`Total Response Time: ${data.total_duration_ms.toFixed(2)} ms`);
-            
-            resultBox.innerHTML = `
-                <div>${data.response.replace(/\n/g, '<br>')}</div>
-                <div class="metric-text">
-                    Response Time: ${data.total_duration_ms.toFixed(2)} ms
-                </div>
-            `;
-        } else {
-            logToConsole(`Test failed: ${res.error}`, true);
-            resultBox.innerHTML = `<p class="placeholder-text" style="color: var(--danger)">Error: ${res.error}</p>`;
+            if (res.success) {
+                const data = res.data.metrics;
+                logToConsole(`Test completed successfully.`);
+                logToConsole(`Total Response Time: ${data.total_duration_ms.toFixed(2)} ms`);
+                
+                resultBox.innerHTML = `
+                    <div>${data.response.replace(/\n/g, '<br>')}</div>
+                    <div class="metric-text">
+                        Response Time: ${data.total_duration_ms.toFixed(2)} ms
+                    </div>
+                `;
+            } else {
+                if (isStopRequested) throw new Error("Stop Requested");
+                logToConsole(`Test failed: ${res.error}`, true);
+                resultBox.innerHTML = `<p class="placeholder-text" style="color: var(--danger)">Error: ${res.error}</p>`;
+            }
+        } catch (err) {
+            if (isStopRequested) {
+                logToConsole(`Test aborted by user.`, true);
+            } else {
+                logToConsole(`Error: ${err.message}`, true);
+            }
+        } finally {
+            // Auto-unload model after test
+            logToConsole(`Releasing VRAM for ${modelName}...`);
+            await fetchAPI('/api/models/unload', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ model_name: modelName })
+            });
         }
     }
 
@@ -525,18 +595,59 @@ async function runTest(event) {
     btn.disabled = false;
     selectEl.disabled = false;
     document.getElementById('promptInput').disabled = false;
+    if (stopBtn) stopBtn.classList.add('hidden');
     
     btnText.textContent = 'Run Test';
     spinner.classList.add('hidden');
     if (runIcon) runIcon.classList.remove('hidden');
 
-    // Completion Popup
-    SignalAlert.fire({
-        icon: 'success',
-        title: 'DIAGNOSTIC COMPLETE',
-        text: modelName === 'ALL' ? 'Sequential testing of all models finished.' : `Test for ${modelName} finished successfully.`,
-        confirmButtonText: 'VIEW METRICS'
+    if (isStopRequested) {
+        logToConsole('DIAGNOSTIC HALTED BY USER.', true);
+        SignalAlert.fire({
+            icon: 'info',
+            title: 'HALTED',
+            text: 'The diagnostic sequence was stopped manually.',
+            confirmButtonText: 'OK'
+        });
+    } else {
+        // Completion Popup
+        SignalAlert.fire({
+            icon: 'success',
+            title: 'DIAGNOSTIC COMPLETE',
+            text: modelName === 'ALL' ? 'Sequential testing of all models finished.' : `Test for ${modelName} finished successfully.`,
+            confirmButtonText: 'VIEW METRICS'
+        });
+    }
+
+    currentTestAbortController = null;
+
+    // Final global cleanup to ensure no models remain in memory
+    logToConsole('Finalizing: Ensuring all models are unloaded...');
+    await fetchAPI('/api/models/unload_all', { method: 'POST' });
+}
+
+async function stopTest() {
+    const result = await SignalAlert.fire({
+        title: 'HALT DIAGNOSTIC?',
+        text: "This will terminate the current test and unload models from memory.",
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: 'YES, STOP NOW',
+        cancelButtonText: 'CONTINUE TEST',
+        reverseButtons: true
     });
+
+    if (result.isConfirmed) {
+        isStopRequested = true;
+        if (currentTestAbortController) {
+            currentTestAbortController.abort();
+        }
+        const stopBtn = document.getElementById('stopTestBtn');
+        if (stopBtn) {
+            stopBtn.innerText = 'Stopping...';
+            stopBtn.disabled = true;
+        }
+    }
 }
 
 // --- Console Helper ---

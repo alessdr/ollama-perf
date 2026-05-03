@@ -28,6 +28,11 @@
                     <span class="btn-text">Execute Diagnostic</span>
                     <span class="spinner hidden"></span>
                 </button>
+
+                <button type="button" class="btn btn-danger btn-block hidden" id="stopTestBtn" onclick="stopTest()" style="height: 50px; margin-top: 12px; border-style: dashed; background: transparent; color: var(--danger); border-color: var(--danger);">
+                    <i data-lucide="square" style="width:14px;height:14px; margin-right: 8px;"></i>
+                    <span>Stop Diagnostic</span>
+                </button>
             </form>
         </div>
 
@@ -71,7 +76,6 @@
                     <span style="font-size: 0.65rem; color: var(--text-muted); margin-left: 8px; text-transform: uppercase; letter-spacing: 0.05em;">Ollama Diagnostics v2.0</span>
                 </div>
                 <div id="executionConsole" class="console-box" style="height: 180px; background: #000; color: var(--primary);">
-                    <p><span class="console-time">[SYSTEM]</span> Diagnostic environment initialized.</p>
                 </div>
             </div>
         </div>
